@@ -1,0 +1,7 @@
+node_modules/
+openapi-generator*.jar
+src/openapi/
+out/
+.venv/
+*~
+*.vsix

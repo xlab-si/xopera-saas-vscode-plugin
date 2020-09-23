@@ -1,0 +1,73 @@
+{
+    "name": "xopera-vscode-extension",
+    "displayName": "xopera-vscode-extension",
+    "description": "xopera vscode ext",
+    "publisher": "radon",
+    "version": "0.0.1",
+    "engines": {
+        "vscode": "^1.49.0"
+    },
+    "categories": [
+        "Other"
+    ],
+    "activationEvents": [
+        "onCommand:xopera-vscode-extension.deploycsar"
+    ],
+    "main": "./out/extension.js",
+    "contributes": {
+        "commands": [
+            {
+                "command": "xopera-vscode-extension.deploycsar",
+                "title": "Create project from CSAR"
+            }
+        ],
+        "menus": {
+            "explorer/context": [
+                {
+                    "when": "resourceExtname == .zip || resourceExtname == .csar",
+                    "command": "xopera-vscode-extension.deploycsar",
+                    "group": "myGroup@1"
+                }
+            ]
+        }
+    },
+    "scripts": {
+        "vscode:prepublish": "npm run clean && webpack --mode production",
+        "compile": "npm run clean &&  tsc -p ./",
+        "lint": "eslint src --ext ts",
+        "watch": "npm run clean && tsc -watch -p ./",
+        "test": "node ./out/test/runTest.js",
+        "webpack": "npm run clean &&  webpack --mode development",
+        "webpack-dev": "npm run clean && webpack --mode development --watch",
+        "clean": "rimraf out/"
+    },
+    "devDependencies": {
+        "@types/glob": "^7.1.3",
+        "@types/js-yaml": "^3.12.5",
+        "@types/jsdom": "^16.2.4",
+        "@types/mocha": "^8.0.0",
+        "@types/node": "^14.0.27",
+        "@types/request": "^2.48.5",
+        "@types/tough-cookie": "^4.0.0",
+        "@types/vscode": "^1.49.0",
+        "@typescript-eslint/eslint-plugin": "^4.1.1",
+        "@typescript-eslint/parser": "^4.1.1",
+        "eslint": "^7.9.0",
+        "glob": "^7.1.6",
+        "mocha": "^8.1.3",
+        "rimraf": "^3.0.2",
+        "terser-webpack-plugin": "^4.2.2",
+        "ts-loader": "^8.0.4",
+        "typescript": "^4.0.2",
+        "vsce": "^1.79.5",
+        "webpack": "^4.44.2",
+        "webpack-cli": "^3.3.12"
+    },
+    "dependencies": {
+        "js-yaml": "^3.14.0",
+        "jsdom": "15.2.1",
+        "request": "^2.88.2",
+        "tough-cookie": "^4.0.0",
+        "xpath": "0.0.29"
+    }
+}

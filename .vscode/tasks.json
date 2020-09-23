@@ -1,0 +1,41 @@
+// See https://go.microsoft.com/fwlink/?LinkId=733558
+// for the documentation about the tasks.json format
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "type": "npm",
+            "script": "webpack-dev",
+            "problemMatcher": {
+                "owner": "webpack",
+                "severity": "error",
+                "fileLocation": "absolute",
+                "pattern": [
+                    {
+                        "regexp": "ERROR in [^ ]* (.*):(.*):(.*)",
+                        "file": 1,
+                        "line": 2,
+                        "column": 3
+                    },
+                    {
+                        "regexp": ".*",
+                        "message": 0
+                    }
+                ],
+                "background": {
+                    "beginsPattern": "webpack is watching the files.*",
+                    "endsPattern": ".* hidden modules"
+                }
+            },
+            "isBackground": true,
+            "runOptions": {"instanceLimit": 1},
+            "presentation": {
+                "reveal": "silent"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        }
+    ]
+}
