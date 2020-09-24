@@ -24,3 +24,4 @@ webpack.config.js
 
 meta.yaml
 devfile-test.yml
+publishing-examples/
