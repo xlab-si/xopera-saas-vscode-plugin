@@ -5,6 +5,16 @@
 const path = require('path');
 const TerserPlugin = require('terser-webpack-plugin');
 
+let optimization;
+if (process.env.NODE_ENV === "development") {
+    optimization = {}
+} else {
+    optimization = {
+        minimize: true,
+        minimizer: [new TerserPlugin()],
+    }
+}
+
 /**@type {import('webpack').Configuration}*/
 const config = {
     target: 'node', // vscode extensions run in a Node.js-context 📖 -> https://webpack.js.org/configuration/node/
@@ -38,9 +48,6 @@ const config = {
             }
         ]
     },
-    optimization: {
-        minimize: true,
-        minimizer: [new TerserPlugin()],
-    }
+    optimization: optimization
 };
 module.exports = config;

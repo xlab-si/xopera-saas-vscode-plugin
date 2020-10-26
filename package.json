@@ -37,7 +37,7 @@
         "lint": "eslint src --ext ts",
         "watch": "npm run clean && tsc -watch -p ./",
         "test": "node ./out/test/runTest.js",
-        "webpack": "npm run clean &&  webpack --mode development",
+        "webpack": "npm run clean && webpack --mode development",
         "webpack-dev": "npm run clean && webpack --mode development --watch",
         "clean": "rimraf out/"
     },

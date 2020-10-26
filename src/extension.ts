@@ -14,12 +14,12 @@ import { HttpError } from './openapi/api';
 // to anyone reading this code
 // sorry
 
-const doRequest = async (method: string, url: string, formData: object | undefined, cookies: string[]) => new Promise<IncomingMessage>((resolve, reject) => {
+const doCookieRequest = async (method: string, url: string, formData: object | undefined, cookieJar: CookieJar) => new Promise<IncomingMessage>((resolve, reject) => {
     req(url, {
         method: method,
         form: formData,
         headers: {
-            "cookie": cookies
+            "cookie": jarToHeader(url, cookieJar)
         },
         followRedirect: false,
         followAllRedirects: false,
@@ -28,6 +28,8 @@ const doRequest = async (method: string, url: string, formData: object | undefin
             reject(error);
         } else {
             if (response.statusCode && response.statusCode >= 200 && response.statusCode <= 399) {
+                console.log("response for url", url, response)
+                updateJar(url, cookieJar, response)
                 resolve(response);
             } else {
                 console.error(response)
@@ -53,6 +55,83 @@ const jarToHeader = (url: string, jar: CookieJar) => {
     })
     console.log("rendering cookies", cookies)
     return cookies
+}
+
+const doLoginProcedure = async (cookieJar: CookieJar) => {
+    let needsLogin = false
+
+    const credsForAuthResponse = await doCookieRequest(
+        "GET",
+        SaasApi.basePath + "/credential",
+        undefined,
+        cookieJar
+    )
+
+    if (300 <= credsForAuthResponse.statusCode!! && credsForAuthResponse.statusCode!! <= 399) {
+        console.log("we've been redirected")
+        needsLogin = true
+    }
+
+    if (!needsLogin) {
+        return
+    }
+
+    const inputUsername = await vscode.window.showInputBox({
+        prompt: "Username",
+        ignoreFocusOut: true
+    })
+    const inputPassword = await vscode.window.showInputBox({
+        prompt: "Password",
+        ignoreFocusOut: true,
+        password: true
+    })
+
+    if (inputUsername === undefined || inputPassword === undefined) {
+        vscode.window.showErrorMessage("Deployment canceled, no creds upon request.")
+        return
+    }
+
+    console.log("fetching redirected auth page")
+    const redirectedAuthPageResponse = await doCookieRequest(
+        "GET",
+        credsForAuthResponse.headers["location"]!!,
+        undefined,
+        cookieJar
+    )
+
+    //@ts-ignore
+    const doc = new JSDOM(redirectedAuthPageResponse.body).window.document
+    //@ts-ignore
+    const actionUrl = doc.querySelector("#kc-form-login").attributes["action"].value
+    console.log("action url", actionUrl)
+
+    const loginFormSubmitResponse = await doCookieRequest(
+        "POST",
+        actionUrl,
+        { "username": inputUsername, "password": inputPassword, "credentialId": "" },
+        cookieJar
+    )
+
+    console.log("making request to oauth callback")
+    const responseToOauthCallbackRedirect = await doCookieRequest(
+        "GET",
+        loginFormSubmitResponse.headers["location"]!!,
+        undefined,
+        cookieJar
+    )
+    console.log("response to oauth callback redirect response", responseToOauthCallbackRedirect)
+
+    if (300 <= responseToOauthCallbackRedirect.statusCode!! && responseToOauthCallbackRedirect.statusCode!! <= 399) {
+        console.log("redirection of the _oauth request occurred, following")
+        const secondRTOCR = await doCookieRequest(
+            "GET",
+            responseToOauthCallbackRedirect.headers["location"]!!,
+            undefined,
+            cookieJar
+        )
+    } else {
+        console.log("no redirection occurred")
+    }
 }
 
 // this method is called when your extension is activated
@@ -81,88 +160,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
             vscode.window.showInformationMessage("Verifying auth.")
             const cookieJar = new CookieJar()
-            let needsLogin = false
-
-            const credsForAuthResponse = await doRequest(
-                "GET",
-                SaasApi.basePath + "/credential",
-                undefined,
-                []
-            )
-            console.log("creds for auth response", credsForAuthResponse)
-            updateJar(SaasApi.basePath + "/credential", cookieJar, credsForAuthResponse)
-
-            if (300 <= credsForAuthResponse.statusCode!! && credsForAuthResponse.statusCode!! <= 399) {
-                console.log("we've been redirected")
-                needsLogin = true
-            }
-
-            if (needsLogin) {
-                const inputUsername = await vscode.window.showInputBox({
-                    prompt: "Username",
-                    ignoreFocusOut: true
-                })
-                const inputPassword = await vscode.window.showInputBox({
-                    prompt: "Password",
-                    ignoreFocusOut: true,
-                    password: true
-                })
-
-                if (inputUsername === undefined || inputPassword === undefined) {
-                    vscode.window.showErrorMessage("Deployment canceled, no creds upon request.")
-                    return
-                }
-
-                console.log("fetching redirected auth page")
-                const redirectedAuthPageResponse = await doRequest(
-                    "GET",
-                    credsForAuthResponse.headers["location"]!!,
-                    undefined,
-                    jarToHeader(credsForAuthResponse.headers["location"]!!, cookieJar)
-                )
-                console.log("redirected auth page response", redirectedAuthPageResponse)
-                updateJar(credsForAuthResponse.headers["location"]!!, cookieJar, redirectedAuthPageResponse)
-
-
-                //@ts-ignore
-                const doc = new JSDOM(redirectedAuthPageResponse.body).window.document
-                //@ts-ignore
-                const actionUrl = doc.querySelector("#kc-form-login").attributes["action"].value
-                console.log("action url", actionUrl)
-
-                const loginFormSubmitResponse = await doRequest(
-                    "POST",
-                    actionUrl,
-                    { "username": inputUsername, "password": inputPassword, "credentialId": "" },
-                    jarToHeader(actionUrl, cookieJar)
-                )
-                console.log("login response", loginFormSubmitResponse)
-                updateJar(actionUrl, cookieJar, loginFormSubmitResponse)
-
-                console.log("making request to oauth callback")
-                const responseToOauthCallbackRedirect = await doRequest(
-                    "GET",
-                    loginFormSubmitResponse.headers["location"]!!,
-                    undefined,
-                    jarToHeader(loginFormSubmitResponse.headers["location"]!!, cookieJar)
-                )
-                console.log("response to oauth callback redirect response", responseToOauthCallbackRedirect)
-
-                if (300 <= responseToOauthCallbackRedirect.statusCode!! && responseToOauthCallbackRedirect.statusCode!! <= 399) {
-                    console.log("redirection of the _oauth request occurred, following")
-                    const secondRTOCR = await doRequest(
-                        "GET",
-                        responseToOauthCallbackRedirect.headers["location"]!!,
-                        undefined,
-                        jarToHeader(responseToOauthCallbackRedirect.headers["location"]!!, cookieJar)
-                    )
-                    console.log("second rtocr", secondRTOCR)
-                    updateJar(secondRTOCR.headers["location"]!!, cookieJar, secondRTOCR)
-                } else {
-                    console.log("no redirection occurred, updating jar")
-                    updateJar(loginFormSubmitResponse.headers["location"]!!, cookieJar, responseToOauthCallbackRedirect)
-                }
-            }
+            await doLoginProcedure(cookieJar)
 
             SaasApi.defaultHeaders = {
                 "cookie": jarToHeader(SaasApi.basePath, cookieJar)
