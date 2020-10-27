@@ -225,6 +225,11 @@ const saveLoginInfo = async (cookieJar: CookieJar, storage: vscode.Memento) => {
     await storage.update("saas-login-info", cookString)
 }
 
+const deleteLoginInfo = async (storage: vscode.Memento) => {
+    console.log("deleting login info")
+    await storage.update("saas-login-info", undefined)
+}
+
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
 export async function activate(context: vscode.ExtensionContext) {
@@ -242,10 +247,16 @@ export async function activate(context: vscode.ExtensionContext) {
     }
     context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider("rawtext", rawTextProvider));
 
+    const removeStoredCredentialsCommand = vscode.commands.registerCommand("xopera-vscode-extension.deletelogininfo", async () => {
+        await deleteLoginInfo(context.workspaceState)
+        vscode.window.showInformationMessage("Login info deleted.")
+    })
+    context.subscriptions.push(removeStoredCredentialsCommand)
+
     // The command has been defined in the package.json file
     // Now provide the implementation of the command with registerCommand
     // The commandId parameter must match the command field in package.json
-    let disposable = vscode.commands.registerCommand('xopera-vscode-extension.deploycsar', async (zipFileUri) => {
+    const deployCsarCommand = vscode.commands.registerCommand("xopera-vscode-extension.deploycsar", async (zipFileUri) => {
         try {
             vscode.window.showInformationMessage('Hello World wawawa from xopera-vscode-extension!')
 
@@ -395,9 +406,8 @@ export async function activate(context: vscode.ExtensionContext) {
             return
         }
         console.log("Finally done.")
-    });
-
-    context.subscriptions.push(disposable);
+    })
+    context.subscriptions.push(deployCsarCommand);
 }
 
 // this method is called when your extension is deactivated

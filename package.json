@@ -11,14 +11,19 @@
         "Other"
     ],
     "activationEvents": [
-        "onCommand:xopera-vscode-extension.deploycsar"
+        "onCommand:xopera-vscode-extension.deploycsar",
+        "onCommand:xopera-vscode-extension.deletelogininfo"
     ],
     "main": "./out/extension.js",
     "contributes": {
         "commands": [
             {
                 "command": "xopera-vscode-extension.deploycsar",
-                "title": "Create project from CSAR"
+                "title": "xOpera SaaS: Create project from CSAR"
+            },
+            {
+                "command": "xopera-vscode-extension.deletelogininfo",
+                "title": "xOpera SaaS: Delete login info"
             }
         ],
         "menus": {
@@ -26,7 +31,12 @@
                 {
                     "when": "resourceExtname == .zip || resourceExtname == .csar",
                     "command": "xopera-vscode-extension.deploycsar",
-                    "group": "myGroup@1"
+                    "group": "saas@1"
+                },
+                {
+                    "when": "true",
+                    "command": "xopera-vscode-extension.deletelogininfo",
+                    "group": "saas@2"
                 }
             ]
         }
