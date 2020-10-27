@@ -6,13 +6,18 @@ const path = require('path');
 const TerserPlugin = require('terser-webpack-plugin');
 
 let optimization;
-if (process.env.NODE_ENV === "development") {
-    optimization = {}
-} else {
+let devtool;
+if (process.env.NODE_ENV === "production") {
     optimization = {
         minimize: true,
         minimizer: [new TerserPlugin()],
     }
+    devtool = "source-map"
+} else {
+    optimization = {
+        minimize: false
+    }
+    devtool = "eval-source-map" // source-map doesn't work because vscode doesn't actually map when you're debugging extensions
 }
 
 /**@type {import('webpack').Configuration}*/
@@ -26,7 +31,8 @@ const config = {
         libraryTarget: 'commonjs2',
         devtoolModuleFilenameTemplate: '../[resource-path]'
     },
-    devtool: 'source-map',
+    //@ts-ignore
+    devtool: devtool,
     externals: {
         vscode: 'commonjs vscode', // the vscode-module is created on-the-fly and must be excluded. Add other modules that cannot be webpack'ed, 📖 -> https://webpack.js.org/configuration/externals/
         canvas: "commonjs vscode"
