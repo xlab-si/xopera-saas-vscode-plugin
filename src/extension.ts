@@ -14,7 +14,13 @@ import { HttpError } from './openapi/api';
 // to anyone reading this code
 // sorry
 
+interface AuthProvider {
+    href: string,
+    text: string
+}
+
 const doCookieRequest = async (method: string, url: string, formData: object | undefined, cookieJar: CookieJar) => new Promise<IncomingMessage>((resolve, reject) => {
+    console.log("doing " + method + " request to " + url)
     req(url, {
         method: method,
         form: formData,
@@ -28,7 +34,7 @@ const doCookieRequest = async (method: string, url: string, formData: object | u
             reject(error);
         } else {
             if (response.statusCode && response.statusCode >= 200 && response.statusCode <= 399) {
-                console.log("response for url", url, response)
+                console.log("response for " + method + " url " + url, response)
                 updateJar(url, cookieJar, response)
                 resolve(response);
             } else {
@@ -39,27 +45,88 @@ const doCookieRequest = async (method: string, url: string, formData: object | u
     });
 });
 
+// may net strictly follow spec, but w/e
+const doCookieRequestFollowRedirects: (method: string, url: string, formData: object | undefined, cookieJar: CookieJar) => Promise<IncomingMessage> = async (method: string, url: string, formData: object | undefined, cookieJar: CookieJar) => {
+    console.log("follow redirects " + method + " request to " + url)
+    const response = await doCookieRequest(method, url, formData, cookieJar)
+    if (300 <= response.statusCode!! && response.statusCode!! <= 399) {
+        let newMethod: string
+        if (response.statusCode!! === 302 || response.statusCode!! === 303) {
+            console.log(response.statusCode!!.toString() + " received, switching from " + method + " to GET")
+            newMethod = "GET"
+        } else {
+            console.log(response.statusCode!!.toString() + " received, continuing with " + method)
+            newMethod = method
+        }
+
+        console.log("following redirect to " + response.headers["location"]!!)
+        return await doCookieRequestFollowRedirects(newMethod, response.headers["location"]!!, formData, cookieJar)
+    }
+    return response
+}
+
 const updateJar = (url: string, jar: CookieJar, response: IncomingMessage) => {
     const setCookieHeaders = response.headers['set-cookie']!!
-    console.log("updating cookies from set-cookie", setCookieHeaders)
+    if (!setCookieHeaders) {
+        console.debug("not updating jar, no set-cookie headers")
+        return
+    }
+    console.debug("updating cookies from set-cookie " + setCookieHeaders.toString())
     const newCookies = setCookieHeaders.map(c => Cookie.parse(c)!!)
     newCookies.forEach(c => {
         jar.setCookie(c, url)
     })
-    console.log("updated jar", jar)
+    console.debug("updated jar", jar)
 }
 
 const jarToHeader = (url: string, jar: CookieJar) => {
     const cookies = jar.getCookiesSync(url).map(c => {
         return c.cookieString()
     })
-    console.log("rendering cookies", cookies)
+    console.debug("rendering cookies", cookies)
     return cookies
+}
+
+const smartQuerySelectorAll = (doc: Document, query: string) => {
+    const results: Element[] = []
+    doc.querySelectorAll(query).forEach(i => {
+        results.push(i)
+    })
+    return results
+}
+
+const getAuthProviders = (doc: Document, pageUrlString: string) => {
+    console.log("getting auth providers")
+
+    const authProviders: AuthProvider[] = []
+    const authProviderElements = smartQuerySelectorAll(doc, "#kc-social-providers li a")
+    authProviderElements.forEach(i => {
+        authProviders.push({
+            //@ts-ignore
+            href: (new URL(i.href, pageUrlString)).href,
+            text: i.firstElementChild?.textContent || "unknown provider"
+        })
+    })
+    return authProviders
+}
+
+const doKeycloakLoginPage = async (cookieJar: CookieJar, page: Document, username: string, password: string) => {
+    //@ts-ignore
+    const actionUrl = page.querySelector("#kc-form-login").attributes["action"].value
+    console.log("action url", actionUrl)
+
+    return await doCookieRequestFollowRedirects(
+        "POST",
+        actionUrl,
+        { "username": username, "password": password, "credentialId": "" },
+        cookieJar
+    )
 }
 
 const doLoginProcedure = async (cookieJar: CookieJar) => {
     let needsLogin = false
 
+    console.log("LOGIN STEP 1: check")
     const credsForAuthResponse = await doCookieRequest(
         "GET",
         SaasApi.basePath + "/credential",
@@ -76,6 +143,36 @@ const doLoginProcedure = async (cookieJar: CookieJar) => {
         return
     }
 
+    console.log("LOGIN STEP 2: request for oidc-radon")
+    const redirectedAuthPageResponse = await doCookieRequestFollowRedirects(
+        "GET",
+        credsForAuthResponse.headers["location"]!!,
+        undefined,
+        cookieJar
+    )
+
+    //@ts-ignore
+    const doc = new JSDOM(redirectedAuthPageResponse.body).window.document
+
+    console.log("LOGIN STEP 3: getting auth providers")
+    const authProviders = getAuthProviders(doc, credsForAuthResponse.headers["location"]!!)
+    let chosenAuthProvider: AuthProvider | null
+    if (authProviders.length === 0) {
+        chosenAuthProvider = null
+    } else {
+        const authenticationMethodChoices: { [key: string]: AuthProvider | null } = {}
+        authenticationMethodChoices["Log in as an XLAB native user"] = null
+        authProviders.forEach(i => {authenticationMethodChoices[i.text] = i})
+
+        const chosenAuthOptionKey = await vscode.window.showQuickPick(Object.keys(authenticationMethodChoices), { canPickMany: false, ignoreFocusOut: true })
+        if (chosenAuthOptionKey === undefined) {
+            vscode.window.showInformationMessage("Deployment canceled, no chosen workspace.")
+            console.error("Deployment canceled, no chosen workspace.")
+            throw new Error("Deployment canceled, no chosen workspace.");
+        }
+        chosenAuthProvider = authenticationMethodChoices[chosenAuthOptionKey]
+    }
+
     const inputUsername = await vscode.window.showInputBox({
         prompt: "Username",
         ignoreFocusOut: true
@@ -85,53 +182,30 @@ const doLoginProcedure = async (cookieJar: CookieJar) => {
         ignoreFocusOut: true,
         password: true
     })
-
     if (inputUsername === undefined || inputPassword === undefined) {
         vscode.window.showErrorMessage("Deployment canceled, no creds upon request.")
         return
     }
 
-    console.log("fetching redirected auth page")
-    const redirectedAuthPageResponse = await doCookieRequest(
-        "GET",
-        credsForAuthResponse.headers["location"]!!,
-        undefined,
-        cookieJar
-    )
-
-    //@ts-ignore
-    const doc = new JSDOM(redirectedAuthPageResponse.body).window.document
-    //@ts-ignore
-    const actionUrl = doc.querySelector("#kc-form-login").attributes["action"].value
-    console.log("action url", actionUrl)
-
-    const loginFormSubmitResponse = await doCookieRequest(
-        "POST",
-        actionUrl,
-        { "username": inputUsername, "password": inputPassword, "credentialId": "" },
-        cookieJar
-    )
-
-    console.log("making request to oauth callback")
-    const responseToOauthCallbackRedirect = await doCookieRequest(
-        "GET",
-        loginFormSubmitResponse.headers["location"]!!,
-        undefined,
-        cookieJar
-    )
-    console.log("response to oauth callback redirect response", responseToOauthCallbackRedirect)
-
-    if (300 <= responseToOauthCallbackRedirect.statusCode!! && responseToOauthCallbackRedirect.statusCode!! <= 399) {
-        console.log("redirection of the _oauth request occurred, following")
-        const secondRTOCR = await doCookieRequest(
+    if (chosenAuthProvider === null) {
+        console.log("LOGIN STEP 4a: native login")
+        const loginFormSubmitResponse = await doKeycloakLoginPage(cookieJar, doc, inputUsername, inputPassword)
+    } else {
+        console.log("LOGIN STEP 4b-1: clicking on auth provider button link")
+        const secondaryAuthProviderButtonResponse = await doCookieRequestFollowRedirects(
             "GET",
-            responseToOauthCallbackRedirect.headers["location"]!!,
+            chosenAuthProvider.href,
             undefined,
             cookieJar
         )
-    } else {
-        console.log("no redirection occurred")
+
+        //@ts-ignore
+        const secondaryAuthProviderDoc = new JSDOM(secondaryAuthProviderButtonResponse.body).window.document
+        console.log("LOGIN STEP 4b-2: submitting secondary auth provider login page")
+        const secondaryAuthProviderloginFormSubmitResponse = await doKeycloakLoginPage(cookieJar, secondaryAuthProviderDoc, inputUsername, inputPassword)
     }
+
+    console.log("LOGIN DONE!")
 }
 
 // this method is called when your extension is activated
