@@ -68,22 +68,22 @@ const doCookieRequestFollowRedirects: (method: string, url: string, formData: ob
 const updateJar = (url: string, jar: CookieJar, response: IncomingMessage) => {
     const setCookieHeaders = response.headers['set-cookie']!!
     if (!setCookieHeaders) {
-        console.debug("not updating jar, no set-cookie headers")
+        console.log("not updating jar, no set-cookie headers")
         return
     }
-    console.debug("updating cookies from set-cookie " + setCookieHeaders.toString())
+    console.log("updating cookies from set-cookie " + setCookieHeaders.toString())
     const newCookies = setCookieHeaders.map(c => Cookie.parse(c)!!)
     newCookies.forEach(c => {
         jar.setCookie(c, url)
     })
-    console.debug("updated jar", jar)
+    console.log("updated jar", jar)
 }
 
 const jarToHeader = (url: string, jar: CookieJar) => {
     const cookies = jar.getCookiesSync(url).map(c => {
         return c.cookieString()
     })
-    console.debug("rendering cookies", cookies)
+    console.log("rendering cookies", cookies)
     return cookies
 }
 
@@ -184,7 +184,7 @@ const doLoginProcedure = async (cookieJar: CookieJar) => {
     })
     if (inputUsername === undefined || inputPassword === undefined) {
         vscode.window.showErrorMessage("Deployment canceled, no creds upon request.")
-        return
+        throw new Error("Deployment canceled, no creds upon request.")
     }
 
     if (chosenAuthProvider === null) {
@@ -206,6 +206,23 @@ const doLoginProcedure = async (cookieJar: CookieJar) => {
     }
 
     console.log("LOGIN DONE!")
+}
+
+const loadLoginInfo = async (cookieJar: CookieJar, storage: vscode.Memento) => {
+    if (storage.get("saas-login-info")) {
+        console.log("getting stored login info: " + storage.get("saas-login-info"))
+        const cook = Cookie.parse(storage.get("saas-login-info") || "SHOULD NOT HAPPEN")
+        await cookieJar.setCookie(cook!!, "https://xopera-radon.xlab.si/")
+        console.log("jar now is", cookieJar)
+    } else {
+        console.log("login info not stored")
+    }
+}
+
+const saveLoginInfo = async (cookieJar: CookieJar, storage: vscode.Memento) => {
+    const cookString = (await cookieJar.getCookies("https://xopera-radon.xlab.si/")).filter(i => i.key == "_forward_auth")[0].toString()
+    console.log("storing login info: " + cookString)
+    await storage.update("saas-login-info", cookString)
 }
 
 // this method is called when your extension is activated
@@ -234,7 +251,9 @@ export async function activate(context: vscode.ExtensionContext) {
 
             vscode.window.showInformationMessage("Verifying auth.")
             const cookieJar = new CookieJar()
+            await loadLoginInfo(cookieJar, context.workspaceState)
             await doLoginProcedure(cookieJar)
+            await saveLoginInfo(cookieJar, context.workspaceState)
 
             SaasApi.defaultHeaders = {
                 "cookie": jarToHeader(SaasApi.basePath, cookieJar)
