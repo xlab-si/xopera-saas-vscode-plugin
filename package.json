@@ -2,6 +2,7 @@
     "name": "xopera-vscode-extension",
     "displayName": "xopera-vscode-extension",
     "description": "xopera vscode ext",
+    "repository": "https://github.com/radon-h2020/radon-xopera-saas-plugin",
     "publisher": "radon",
     "version": "0.0.2",
     "engines": {
