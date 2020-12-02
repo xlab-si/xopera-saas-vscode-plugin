@@ -258,7 +258,7 @@ export async function activate(context: vscode.ExtensionContext) {
     // The commandId parameter must match the command field in package.json
     const deployCsarCommand = vscode.commands.registerCommand("xopera-vscode-extension.deploycsar", async (zipFileUri) => {
         try {
-            vscode.window.showInformationMessage('Hello World wawawa from xopera-vscode-extension!')
+            vscode.window.showInformationMessage('Initialising xopera-saas-extension.')
 
             vscode.window.showInformationMessage("Verifying auth.")
             const cookieJar = new CookieJar()
