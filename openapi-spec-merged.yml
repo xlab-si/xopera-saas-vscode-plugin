@@ -19,33 +19,26 @@ components:
             $ref: '#/components/schemas/Error'
       description: Unauthorized.
   schemas:
-    Credential:
-      description: A credential.
+    AuthenticationStatus:
+      description: Authentication status.
       properties:
-        contents:
-          description: Base64-encoded contents.
-          format: byte
+        isLoggedIn:
+          type: boolean
+        userIdentifier:
           type: string
-        id:
-          format: int64
-          readOnly: true
-          type: integer
-        name:
-          type: string
-        path:
-          type: string
-        workspaces:
-          format: int64
-          items:
-            type: integer
-          readOnly: true
-          type: array
       required:
-      - id
-      - name
-      - path
-      - contents
-      - workspaces
+      - userIdentifier
+      - isLoggedIn
+      type: object
+    CsarInitializationInput:
+      description: Inputs and service template name for deploy and validate commands.
+      properties:
+        clean:
+          type: boolean
+        inputs:
+          type: object
+      required:
+      - clean
       type: object
     DeploymentInput:
       description: Inputs and service template name for deploy and validate commands.
@@ -92,14 +85,23 @@ components:
       required:
       - msg
       type: object
+    Info:
+      description: Information about an opera environment.
+      properties:
+        content_root:
+          type: string
+        inputs:
+          type: object
+        service_template:
+          type: string
+        status:
+          type: string
+      type: object
     Invocation:
       description: An invocation of the deployment.
       properties:
-        console_output:
-          description: xOpera console output for operation.
-          type: string
         exception:
-          description: An internal xOpera error that occurred starting operation.
+          description: An internal xOpera error that occurred during the operation.
           type: string
         id:
           type: string
@@ -112,15 +114,25 @@ components:
           description: State of the instances defined in service template.
           type: object
         operation:
-          type: OperationType
+          $ref: '#/components/schemas/OperationType'
+        service_template:
+          description: The service template used for the invocation.
+          type: string
         state:
           $ref: '#/components/schemas/InvocationState'
+        stderr:
+          description: xOpera error output for operation.
+          type: string
+        stdout:
+          description: xOpera console output for operation.
+          type: string
         timestamp:
           description: An ISO8601 timestamp of the invocation.
           type: string
       required:
       - id
       - state
+      - operation
       - timestamp
       type: object
     InvocationHistory:
@@ -135,13 +147,51 @@ components:
       - success
       - failed
       type: string
+    OperationSuccess:
+      description: A general success message.
+      properties:
+        message:
+          type: string
+        success:
+          type: boolean
+      required:
+      - success
+      type: object
     OperationType:
       enum:
       - deploy
       - undeploy
       type: string
+    PackagingFormat:
+      enum:
+      - zip
+      - tar
+      type: string
+    PackagingInput:
+      description: Packaging parameters.
+      properties:
+        format:
+          $ref: '#/components/schemas/OperationType'
+        output:
+          type: string
+        service_template:
+          type: string
+        service_template_folder:
+          type: string
+      required:
+      - format
+      - service_template_folder
+      type: object
+    PackagingResult:
+      description: A general success message.
+      properties:
+        package_path:
+          type: string
+      required:
+      - package_path
+      type: object
     Project:
-      description: A workspace.
+      description: A project.
       properties:
         csar:
           description: Base64-encoded ZIP file of the CSAR. The service template must
@@ -165,6 +215,50 @@ components:
       - workspace
       - csar
       type: object
+    Secret:
+      description: A secret.
+      properties:
+        contents:
+          description: Base64-encoded contents.
+          format: byte
+          type: string
+          writeOnly: true
+        id:
+          format: int64
+          readOnly: true
+          type: integer
+        name:
+          type: string
+        path:
+          type: string
+        sha512sum:
+          description: The SHA3-512 checksum of the contents encoded as a hexadecimal
+            string.
+          readOnly: true
+          type: string
+        workspaces:
+          format: int64
+          items:
+            type: integer
+          readOnly: true
+          type: array
+      required:
+      - id
+      - name
+      - path
+      - contents
+      - workspaces
+      type: object
+    UnpackagingInput:
+      description: Unpackaging parameters.
+      properties:
+        csar:
+          type: string
+        destination:
+          type: string
+      required:
+      - csar
+      type: object
     UserIdentifier:
       description: A unique identifier for a user.
       type: string
@@ -181,16 +275,13 @@ components:
     Workspace:
       description: A workspace.
       properties:
-        credentials:
-          format: int64
-          items:
-            type: integer
-          readOnly: true
-          type: array
         id:
           format: int64
           readOnly: true
           type: integer
+        isOwner:
+          readOnly: true
+          type: boolean
         name:
           type: string
         projects:
@@ -199,11 +290,18 @@ components:
             type: integer
           readOnly: true
           type: array
+        secrets:
+          format: int64
+          items:
+            type: integer
+          readOnly: true
+          type: array
       required:
       - id
       - name
-      - credentials
+      - secrets
       - projects
+      - isOwner
       type: object
     WorkspaceUserAuthorizationRequest:
       description: A request for user de-authorization.
@@ -214,103 +312,112 @@ components:
       - user
       type: object
 info:
-  license:
-    name: Apache-2.0
   title: xOpera SaaS API
-  version: 1.0.0
+  version: 1.0.4
 openapi: 3.0.0
 paths:
-  /credential:
+  /auth/status:
     get:
-      operationId: getCredentials
+      operationId: authStatus
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthenticationStatus'
+          description: Authentication status.
+      summary: Get the authentication status.
+  /secret:
+    get:
+      operationId: getSecrets
       responses:
         '200':
           content:
             application/json:
               schema:
                 items:
-                  $ref: '#/components/schemas/Credential'
+                  $ref: '#/components/schemas/Secret'
                 type: array
-          description: A list of credentials.
+          description: A list of secrets.
         '401':
           $ref: '#/components/responses/Unauthorized'
-      summary: List available credentials.
+      summary: List available secrets.
     post:
-      operationId: createCredential
+      operationId: createSecret
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Credential'
-        description: Credential creation request.
+              $ref: '#/components/schemas/Secret'
+        description: Secret creation request.
         required: true
       responses:
         '201':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Credential'
-          description: The created credential.
+                $ref: '#/components/schemas/Secret'
+          description: The created secret.
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
-      summary: Create a new credential.
-  /credential/{credentialId}:
+      summary: Create a new secret.
+  /secret/{secretId}:
     delete:
-      operationId: deleteCredential
+      operationId: deleteSecret
       responses:
         '200':
-          description: Credential deleted.
+          description: Secret deleted.
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
-      summary: Delete a credential.
+      summary: Delete a secret.
     get:
-      operationId: describeCredential
+      operationId: describeSecret
       responses:
         '200':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Credential'
-          description: A credential.
+                $ref: '#/components/schemas/Secret'
+          description: A secret.
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
-      summary: Describe a credential.
+      summary: Describe a secret.
     parameters:
     - in: path
-      name: credentialId
+      name: secretId
       required: true
       schema:
         format: int64
         type: integer
     post:
-      operationId: updateCredential
+      operationId: updateSecret
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Credential'
-        description: Credential update request.
+              $ref: '#/components/schemas/Secret'
+        description: Secret update request.
         required: true
       responses:
         '200':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Credential'
-          description: The updated credential.
+                $ref: '#/components/schemas/Secret'
+          description: The updated secret.
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
-      summary: Update a credential.
+      summary: Update a secret.
   /workspace:
     get:
       operationId: getWorkspaces
@@ -470,64 +577,6 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
       summary: Authorize a new user to the workspace.
-  /workspace/{workspaceId}/credential:
-    get:
-      operationId: listWorkspaceCredentials
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                items:
-                  $ref: '#/components/schemas/Credential'
-                type: array
-          description: A list of credentials.
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-      summary: List credentials assigned to the workspace.
-    parameters:
-    - in: path
-      name: workspaceId
-      required: true
-      schema:
-        format: int64
-        type: integer
-  /workspace/{workspaceId}/credential/{credentialId}:
-    delete:
-      operationId: removeWorkspaceCredential
-      responses:
-        '200':
-          description: Credential deleted.
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-      summary: Remove the credential from the workspace.
-    parameters:
-    - in: path
-      name: workspaceId
-      required: true
-      schema:
-        format: int64
-        type: integer
-    - in: path
-      name: credentialId
-      required: true
-      schema:
-        format: int64
-        type: integer
-    put:
-      operationId: assignCredential
-      responses:
-        '200':
-          description: Credential assigned to workspace.
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-      summary: Assign a new credential to the workspace.
   /workspace/{workspaceId}/project:
     get:
       operationId: listWorkspaceProjects
@@ -553,10 +602,10 @@ paths:
         format: int64
         type: integer
     post:
-      description: 'Credentials applied to the workspace the project is in are only
-        applied on creation.
+      description: 'Secrets applied to the workspace the project is in are only applied
+        on creation.
 
-        To modify credentials, create a new project.
+        To modify secrets, create a new project.
 
         '
       operationId: createWorkspaceProject
@@ -671,6 +720,35 @@ paths:
       schema:
         format: int64
         type: integer
+  /workspace/{workspaceId}/project/{projectId}/debugPackage:
+    get:
+      operationId: createWorkspaceProjectDebugPackage
+      responses:
+        '200':
+          content:
+            application/zip:
+              schema:
+                format: binary
+                type: string
+          description: A debug archive.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      summary: Get a package for local debugging.
+    parameters:
+    - in: path
+      name: workspaceId
+      required: true
+      schema:
+        format: int64
+        type: integer
+    - in: path
+      name: projectId
+      required: true
+      schema:
+        format: int64
+        type: integer
   /workspace/{workspaceId}/project/{projectId}/deploy:
     parameters:
     - in: path
@@ -704,6 +782,67 @@ paths:
         '500':
           description: There was an error starting the deployment.
       summary: Deploy a CSAR
+  /workspace/{workspaceId}/project/{projectId}/info:
+    get:
+      operationId: OperaApiInfo
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+          description: The opera environment operation.
+        '500':
+          description: General error.
+      summary: Get information about the current opera environment
+    parameters:
+    - in: path
+      name: workspaceId
+      required: true
+      schema:
+        format: int64
+        type: integer
+    - in: path
+      name: projectId
+      required: true
+      schema:
+        format: int64
+        type: integer
+  /workspace/{workspaceId}/project/{projectId}/init:
+    parameters:
+    - in: path
+      name: workspaceId
+      required: true
+      schema:
+        format: int64
+        type: integer
+    - in: path
+      name: projectId
+      required: true
+      schema:
+        format: int64
+        type: integer
+    post:
+      deprecated: true
+      operationId: OperaApiInit
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CsarInitializationInput'
+        description: CSAR initialization parameters.
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationSuccess'
+          description: CSAR successfully initialized.
+        '500':
+          description: General error.
+      summary: Initialize the CSAR for deployment. Deprecated in favour of unpacking
+        and deploying the CSAR.
   /workspace/{workspaceId}/project/{projectId}/outputs:
     get:
       operationId: OperaApiOutputs
@@ -730,6 +869,39 @@ paths:
       schema:
         format: int64
         type: integer
+  /workspace/{workspaceId}/project/{projectId}/package:
+    parameters:
+    - in: path
+      name: workspaceId
+      required: true
+      schema:
+        format: int64
+        type: integer
+    - in: path
+      name: projectId
+      required: true
+      schema:
+        format: int64
+        type: integer
+    post:
+      operationId: OperaApiPackage
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PackagingInput'
+        description: CSAR packaging parameters.
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PackagingResult'
+          description: Packaging successful.
+        '500':
+          description: General error.
+      summary: Generate a CSAR from a working directory.
   /workspace/{workspaceId}/project/{projectId}/status:
     get:
       operationId: OperaApiStatus
@@ -812,6 +984,39 @@ paths:
         '500':
           description: There was an error starting the undeploy operation.
       summary: Undeploy a deployment
+  /workspace/{workspaceId}/project/{projectId}/unpackage:
+    parameters:
+    - in: path
+      name: workspaceId
+      required: true
+      schema:
+        format: int64
+        type: integer
+    - in: path
+      name: projectId
+      required: true
+      schema:
+        format: int64
+        type: integer
+    post:
+      operationId: OperaApiUnpackage
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UnpackagingInput'
+        description: CSAR unpackaging parameters.
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationSuccess'
+          description: Unpackaging successful.
+        '500':
+          description: General error.
+      summary: Unpackage a CSAR.
   /workspace/{workspaceId}/project/{projectId}/validate:
     parameters:
     - in: path
@@ -845,3 +1050,61 @@ paths:
         '500':
           description: There was an error starting validate operation.
       summary: Validate a CSAR
+  /workspace/{workspaceId}/secret:
+    get:
+      operationId: listWorkspaceSecrets
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/Secret'
+                type: array
+          description: A list of secrets.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      summary: List secrets assigned to the workspace.
+    parameters:
+    - in: path
+      name: workspaceId
+      required: true
+      schema:
+        format: int64
+        type: integer
+  /workspace/{workspaceId}/secret/{secretId}:
+    delete:
+      operationId: removeWorkspaceSecret
+      responses:
+        '200':
+          description: Secret deleted.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      summary: Remove the secret from the workspace.
+    parameters:
+    - in: path
+      name: workspaceId
+      required: true
+      schema:
+        format: int64
+        type: integer
+    - in: path
+      name: secretId
+      required: true
+      schema:
+        format: int64
+        type: integer
+    put:
+      operationId: assignSecret
+      responses:
+        '200':
+          description: Secret assigned to workspace.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      summary: Assign a new secret to the workspace.

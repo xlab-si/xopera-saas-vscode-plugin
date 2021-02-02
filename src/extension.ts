@@ -129,7 +129,7 @@ const doLoginProcedure = async (cookieJar: CookieJar) => {
     console.log("LOGIN STEP 1: check")
     const credsForAuthResponse = await doCookieRequest(
         "GET",
-        SaasApi.basePath + "/credential",
+        SaasApi.basePath + "/secret",
         undefined,
         cookieJar
     )
@@ -259,7 +259,6 @@ export async function activate(context: vscode.ExtensionContext) {
     const deployCsarCommand = vscode.commands.registerCommand("xopera-vscode-extension.deploycsar", async (zipFileUri) => {
         try {
             vscode.window.showInformationMessage('Initialising xopera-saas-extension.')
-
             vscode.window.showInformationMessage("Verifying auth.")
             const cookieJar = new CookieJar()
             await loadLoginInfo(cookieJar, context.workspaceState)
