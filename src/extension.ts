@@ -99,7 +99,7 @@ const getAuthProviders = (doc: Document, pageUrlString: string) => {
     console.log("getting auth providers")
 
     const authProviders: AuthProvider[] = []
-    const authProviderElements = smartQuerySelectorAll(doc, "#kc-social-providers li a")
+    const authProviderElements = smartQuerySelectorAll(doc, "#kc-social-providers ul a")
     authProviderElements.forEach(i => {
         authProviders.push({
             //@ts-ignore
@@ -143,7 +143,7 @@ const doLoginProcedure = async (cookieJar: CookieJar) => {
         return
     }
 
-    console.log("LOGIN STEP 2: request for oidc-radon")
+    console.log("LOGIN STEP 2: request for oidc-xopera")
     const redirectedAuthPageResponse = await doCookieRequestFollowRedirects(
         "GET",
         credsForAuthResponse.headers["location"]!!,
@@ -156,6 +156,7 @@ const doLoginProcedure = async (cookieJar: CookieJar) => {
 
     console.log("LOGIN STEP 3: getting auth providers")
     const authProviders = getAuthProviders(doc, credsForAuthResponse.headers["location"]!!)
+    console.log("Got auth providers", authProviders)
     let chosenAuthProvider: AuthProvider | null
     if (authProviders.length === 0) {
         chosenAuthProvider = null
@@ -212,7 +213,7 @@ const loadLoginInfo = async (cookieJar: CookieJar, storage: vscode.Memento) => {
     if (storage.get("saas-login-info")) {
         console.log("getting stored login info: " + storage.get("saas-login-info"))
         const cook = Cookie.parse(storage.get("saas-login-info") || "SHOULD NOT HAPPEN")
-        await cookieJar.setCookie(cook!!, "https://xopera-radon.xlab.si/")
+        await cookieJar.setCookie(cook!!, "https://saas-xopera.xlab.si/")
         console.log("jar now is", cookieJar)
     } else {
         console.log("login info not stored")
@@ -220,7 +221,10 @@ const loadLoginInfo = async (cookieJar: CookieJar, storage: vscode.Memento) => {
 }
 
 const saveLoginInfo = async (cookieJar: CookieJar, storage: vscode.Memento) => {
-    const cookString = (await cookieJar.getCookies("https://xopera-radon.xlab.si/")).filter(i => i.key == "_forward_auth")[0].toString()
+    console.log("Preparing to store login info into cookie jar.", cookieJar)
+    const allCookies = await cookieJar.getCookies("https://saas-xopera.xlab.si/")
+    console.log("All cookies:", allCookies)
+    const cookString = allCookies.filter(i => i.key == "_forward_auth")[0].toString()
     console.log("storing login info: " + cookString)
     await storage.update("saas-login-info", cookString)
 }
@@ -398,7 +402,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 await vscode.window.showTextDocument(vscode.Uri.parse("rawtext:" + resultString))
             }
 
-            await vscode.env.openExternal(vscode.Uri.parse("https://xopera-radon.xlab.si/ui/"))
+            await vscode.env.openExternal(vscode.Uri.parse("https://saas-xopera.xlab.si/ui/"))
         } catch (e) {
             vscode.window.showErrorMessage("General error, see debug console.")
             console.error(e)
