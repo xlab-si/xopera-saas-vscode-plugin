@@ -31,6 +31,7 @@ const doCookieRequest = async (method: string, url: string, formData: object | u
         followAllRedirects: false,
     }, (error, response, body) => {
         if (error) {
+            console.error("doCookieRequest internal error", error)
             reject(error);
         } else {
             if (response.statusCode && response.statusCode >= 200 && response.statusCode <= 399) {
@@ -38,7 +39,7 @@ const doCookieRequest = async (method: string, url: string, formData: object | u
                 updateJar(url, cookieJar, response)
                 resolve(response);
             } else {
-                console.error(response)
+                console.error("doCookieRequest API error with status", response.statusCode, response)
                 reject(new HttpError(response, response.statusCode));
             }
         }
@@ -126,10 +127,10 @@ const doKeycloakLoginPage = async (cookieJar: CookieJar, page: Document, usernam
 const doLoginProcedure = async (cookieJar: CookieJar) => {
     let needsLogin = false
 
-    console.log("LOGIN STEP 1: check")
+    console.log("LOGIN STEP 1: auth check")
     const credsForAuthResponse = await doCookieRequest(
         "GET",
-        SaasApi.basePath + "/secret",
+        SaasApi.basePath + "/auth/consent",
         undefined,
         cookieJar
     )
@@ -274,15 +275,37 @@ export async function activate(context: vscode.ExtensionContext) {
             }
             console.log("default headers for saas now", SaasApi.defaultHeaders)
 
-
-            console.log("hopefully authed ws request")
-            const workspacesShouldBeAuthedResponse = await SaasApi.getWorkspaces()
-            console.log("these should be wss", workspacesShouldBeAuthedResponse)
-            if (!workspacesShouldBeAuthedResponse.body) {
+            console.log("hopefully authed consent request")
+            const consentResponse = await SaasApi.getConsent()
+            console.log("consent request done")
+            if (!consentResponse.body) {
                 vscode.window.showInformationMessage("authentication didn't do its thing")
                 console.error("authentication didn't do its thing")
                 return
             }
+
+            if (consentResponse.body.iAcknowledgePotentialDataLossAndAmAwareOfAllRisks !== true) {
+                const consentPick = await vscode.window.showQuickPick(["I agree", "I do not agree"], {
+                     canPickMany: false, ignoreFocusOut: true, placeHolder: "Do you agree to the xOpera SaaS TOS? (https://saas-xopera.xlab.si/ui/)"
+                })
+                if (consentPick === undefined) {
+                    vscode.window.showInformationMessage("Consent choice cancelled.")
+                    console.error("Consent choice cancelled.")
+                    return
+                }
+
+                if (consentPick !== "I agree") {
+                    vscode.window.showInformationMessage("No consent. Aborting.")
+                    console.error("No consent. Aborting.")
+                    return
+                }
+
+                await SaasApi.setConsent({iAcknowledgePotentialDataLossAndAmAwareOfAllRisks: true})
+                vscode.window.showInformationMessage("Consent submitted. Proceeding.")
+            }
+
+            const workspacesShouldBeAuthedResponse = await SaasApi.getWorkspaces()
+            console.log("these should be wss", workspacesShouldBeAuthedResponse)
             const workspaces = workspacesShouldBeAuthedResponse.body
 
             const workspaceSelectOptions: { [key: string]: Workspace | null } = {}

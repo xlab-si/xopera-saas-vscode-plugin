@@ -30,6 +30,82 @@ components:
       - userIdentifier
       - isLoggedIn
       type: object
+    BatchDashboardStatus:
+      properties:
+        numAccessibleWorkspaces:
+          format: int32
+          type: integer
+        numOwnedWorkspaces:
+          format: int32
+          type: integer
+        numProjects:
+          format: int32
+          type: integer
+        numSecrets:
+          format: int32
+          type: integer
+        numTriggers:
+          format: int32
+          type: integer
+        totalTimesTriggerCalled:
+          format: int32
+          type: integer
+      required:
+      - numProjects
+      - numWorkspaces
+      - numSecrets
+      - numTriggers
+      - totalTimesTriggered
+      type: object
+    BatchTriggerEventDetails:
+      properties:
+        projects:
+          items:
+            $ref: '#/components/schemas/Project'
+          type: array
+        triggerEvents:
+          items:
+            $ref: '#/components/schemas/TriggerEvent'
+          type: array
+        workspaces:
+          items:
+            $ref: '#/components/schemas/Workspace'
+          type: array
+      required:
+      - triggerEvents
+      - projects
+      - workspaces
+      type: object
+    BatchWorkspaceProject:
+      description: Contains all workspaces and their projects.
+      properties:
+        projects:
+          items:
+            $ref: '#/components/schemas/Project'
+          type: array
+        workspaceSecrets:
+          additionalProperties:
+            items:
+              format: int64
+              type: integer
+            type: array
+          type: object
+        workspaces:
+          items:
+            $ref: '#/components/schemas/Workspace'
+          type: array
+      required:
+      - workspaces
+      - projects
+      type: object
+    ConsentStatus:
+      description: Consent status.
+      properties:
+        iAcknowledgePotentialDataLossAndAmAwareOfAllRisks:
+          type: boolean
+      required:
+      - iAcknowledgePotentialDataLossAndAmAwareOfAllRisks
+      type: object
     CsarInitializationInput:
       description: Inputs and service template name for deploy and validate commands.
       properties:
@@ -84,6 +160,27 @@ components:
           type: string
       required:
       - msg
+      type: object
+    FilePermissions:
+      description: Simplified POSIX file permissions.
+      properties:
+        group:
+          exclusiveMinimum: false
+          format: int32
+          minimum: 0
+          type: integer
+        octalFileMode:
+          pattern: 0[0-7]{3}
+          type: string
+        owner:
+          exclusiveMinimum: false
+          format: int32
+          minimum: 0
+          type: integer
+      required:
+      - owner
+      - group
+      - octalFileMode
       type: object
     Info:
       description: Information about an opera environment.
@@ -231,6 +328,8 @@ components:
           type: string
         path:
           type: string
+        permissions:
+          $ref: '#/components/schemas/FilePermissions'
         sha512sum:
           description: The SHA3-512 checksum of the contents encoded as a hexadecimal
             string.
@@ -246,8 +345,32 @@ components:
       - id
       - name
       - path
+      - permissions
       - contents
       - workspaces
+      type: object
+    TriggerEvent:
+      description: A registered callback binding for a TOSCA event.
+      properties:
+        callbackUuid:
+          format: uuid
+          type: string
+        eventName:
+          type: string
+        id:
+          format: int64
+          readOnly: true
+          type: integer
+        project:
+          format: int64
+          type: integer
+        timesCalled:
+          readOnly: true
+          type: integer
+      required:
+      - id
+      - eventName
+      - project
       type: object
     UnpackagingInput:
       description: Unpackaging parameters.
@@ -313,9 +436,37 @@ components:
       type: object
 info:
   title: xOpera SaaS API
-  version: 1.0.4
+  version: 1.0.9
 openapi: 3.0.0
 paths:
+  /auth/consent:
+    get:
+      operationId: getConsent
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsentStatus'
+          description: Consent status.
+      summary: Get consent status
+    post:
+      operationId: setConsent
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConsentStatus'
+        description: Consent modification request.
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsentStatus'
+          description: The new consent status.
+      summary: Set consent status.
   /auth/status:
     get:
       operationId: authStatus
@@ -327,6 +478,75 @@ paths:
                 $ref: '#/components/schemas/AuthenticationStatus'
           description: Authentication status.
       summary: Get the authentication status.
+  /batch/dashboardStatus:
+    get:
+      operationId: batchDashboardStatus
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchDashboardStatus'
+          description: General information.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      summary: General information, shown in the dashboard.
+  /batch/triggerEventDetails:
+    get:
+      operationId: batchTriggerEventDetails
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchTriggerEventDetails'
+          description: Trigger events, related information.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      summary: Trigger events and related information.
+  /batch/workspacesProjectsDetails:
+    get:
+      operationId: batchWorkspacesProjectsDetails
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchWorkspaceProject'
+          description: A workspace-project batch response.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      summary: Fetch all accessible workspaces and projects at once, full details.
+  /callback/{callbackUuid}:
+    parameters:
+    - in: path
+      name: callbackUuid
+      required: true
+      schema:
+        format: uuid
+        type: string
+    post:
+      operationId: triggerEventCallback
+      requestBody:
+        content:
+          text/plain:
+            schema:
+              type: string
+        required: false
+      responses:
+        '200':
+          description: The created trigger event.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+      summary: Do a trigger.
   /secret:
     get:
       operationId: getSecrets
@@ -418,6 +638,97 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
       summary: Update a secret.
+  /trigger-event/:
+    get:
+      operationId: getTriggerEvents
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/TriggerEvent'
+                type: array
+          description: A list of trigger events.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+      summary: List available trigger events.
+    post:
+      operationId: createTriggerEvent
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TriggerEvent'
+        description: Trigger event creation request.
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TriggerEvent'
+          description: The created trigger event.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+      summary: Create a new trigger event.
+  /trigger-event/{triggerEventId}:
+    delete:
+      operationId: deleteTriggerEvent
+      responses:
+        '200':
+          description: Trigger event deleted.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      summary: Delete a trigger event.
+    get:
+      operationId: describeTriggerEvent
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TriggerEvent'
+          description: A trigger event.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      summary: Describe a trigger event.
+    parameters:
+    - in: path
+      name: triggerEventId
+      required: true
+      schema:
+        format: int64
+        type: integer
+    post:
+      operationId: updateTriggerEvent
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TriggerEvent'
+        description: Trigger event update request.
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TriggerEvent'
+          description: The updated trigger event.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      summary: Update a trigger event.
   /workspace:
     get:
       operationId: getWorkspaces
@@ -843,6 +1154,43 @@ paths:
           description: General error.
       summary: Initialize the CSAR for deployment. Deprecated in favour of unpacking
         and deploying the CSAR.
+  /workspace/{workspaceId}/project/{projectId}/notify/{triggerName}:
+    parameters:
+    - in: path
+      name: triggerName
+      required: true
+      schema:
+        type: string
+    - in: path
+      name: workspaceId
+      required: true
+      schema:
+        format: int64
+        type: integer
+    - in: path
+      name: projectId
+      required: true
+      schema:
+        format: int64
+        type: integer
+    post:
+      operationId: OperaApiNotify
+      requestBody:
+        content:
+          text/plain:
+            schema:
+              type: string
+        required: false
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationSuccess'
+          description: Trigger triggered.
+        '500':
+          description: General error.
+      summary: Do a notification.
   /workspace/{workspaceId}/project/{projectId}/outputs:
     get:
       operationId: OperaApiOutputs
