@@ -1,14 +1,54 @@
 {
-    "name": "xopera-vscode-extension",
-    "displayName": "xopera-vscode-extension",
-    "description": "xopera vscode ext",
-    "repository": "https://github.com/radon-h2020/radon-xopera-saas-plugin",
-    "publisher": "radon",
-    "version": "0.0.5",
+    "name": "xopera-saas",
+    "displayName": "xOpera SaaS",
+    "description": "xOpera SaaS VS Code/Eclipse Che Theia extension",
+    "publisher": "xlab",
+    "author": "XLAB",
+    "version": "0.0.6",
+    "license": "Apache-2.0",
+    "homepage": "https://xlab-si.github.io/xopera-docs/saas.html#eclipse-che-vs-code-plugin-for-xopera-saas",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/xlab-si/radon-xopera-saas-plugin"
+    },
+    "bugs": {
+        "url": "https://github.com/xlab-si/radon-xopera-saas-plugin/issues",
+        "email": "xopera@xlab.si"
+    },
     "engines": {
         "vscode": "^1.49.0"
     },
+    "extensionKind": [
+        "workspace",
+        "ui"
+    ],
+    "keywords": [
+        "opera",
+        "xOpera",
+        "SaaS",
+        "orchestrator",
+        "orchestration",
+        "automation",
+        "OASIS",
+        "TOSCA",
+        "Ansible",
+        "YAML",
+        "YML",
+        "module",
+        "template",
+        "artifact",
+        "blueprint",
+        "application",
+        "CSAR",
+        "RADON",
+        "FaaS",
+        "serverless",
+        "service",
+        "XLAB"
+    ],
     "categories": [
+        "Extension Packs",
+        "SCM Providers",
         "Other"
     ],
     "activationEvents": [
