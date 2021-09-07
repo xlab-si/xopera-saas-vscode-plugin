@@ -1,6 +1,6 @@
 # xOpera SaaS plugin for VS Code/Eclipse Che Theia
 This repository allows you to set up VS Code/Eclipse Che Theia [xOpera SaaS plugin]. If you are totally unfamiliar with 
-xOpera you can take a look at the [xOpera's documentation].
+xOpera you can take a look at the [xOpera documentation].
 
 | Aspect                         | Information                               |
 | ------------------------------ |:-----------------------------------------:|
@@ -74,6 +74,6 @@ The plugin currently allows users to:
 [Eclipse Theia]: https://theia-ide.org
 [Visual Studio Code]: https://code.visualstudio.com
 [Visual Studio Marketplace]: https://marketplace.visualstudio.com/
-[Releases]: https://github.com/xlab-si/radon-xopera-saas-plugin/releases
+[Releases]: https://github.com/xlab-si/xopera-saas-vscode-plugin/releases
 [Open VSX Registry]: https://open-vsx.org/
 [xOpera SaaS REST API]: https://xlab-si.github.io/xopera-docs/saas.html#saas-api
