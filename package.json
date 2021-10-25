@@ -4,8 +4,9 @@
     "description": "xOpera SaaS VS Code/Eclipse Che Theia extension",
     "publisher": "xlab",
     "author": "XLAB",
-    "version": "0.0.7",
+    "version": "0.0.8",
     "license": "Apache-2.0",
+    "icon": "images/xopera-saas-logo.png",
     "homepage": "https://xlab-si.github.io/xopera-docs/saas.html#eclipse-che-vs-code-plugin-for-xopera-saas",
     "repository": {
         "type": "git",
